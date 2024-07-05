@@ -25,12 +25,13 @@ def adjust_brightness_contrast(image, brightness=0, contrast=0):
     return image
 
 def refine_pin_detection_adjusted(img):
+    smallest_white_field = None
     smallest_pincenter = None
-    largest_green_point = 0
+    smallest_green_point = None
     distance = 0
     distance2 = 0
-    img = adjust_brightness_contrast(img, brightness=1, contrast=35)
-    sliced_image = img[280:360, 250:520]
+    img = adjust_brightness_contrast(img, brightness=2, contrast=21)
+    sliced_image = img[240:320, 280:520]
     # frame_width, frame_height = img.shape[1], img.shape[0]
     # zoom_factor = 2
     # zoomed_frame = zoom(img, zoom_factor)
@@ -51,14 +52,14 @@ def refine_pin_detection_adjusted(img):
     hsv = cv2.cvtColor(sliced_image, cv2.COLOR_BGR2HSV)
 
     # Define range of white color in HSV
-    lower_white = np.array([38, 10, 90])  
-    upper_white = np.array([190, 108, 255])
+    lower_white = np.array([0, 0, 70])  
+    upper_white = np.array([60, 25, 94])
     
     # Convert BGR to HSV
     hsv = cv2.cvtColor(sliced_image, cv2.COLOR_BGR2HSV)
 
     # Define range of green color in HSV
-    lower_green = np.array([60, 120, 70])
+    lower_green = np.array([60, 94, 70])
     upper_green = np.array([140, 205, 255])
     
     # # Define range of green color in HSV
@@ -102,14 +103,14 @@ def refine_pin_detection_adjusted(img):
     blur = cv2.GaussianBlur(gray, (3, 3), 0)
 
     gray_inverted = cv2.bitwise_not(blur)
-    _, binary = cv2.threshold(gray_inverted, 88, 255, cv2.THRESH_BINARY)
+    _, binary = cv2.threshold(gray_inverted, 60, 255, cv2.THRESH_BINARY)
     _, binary2 = cv2.threshold(gray_inverted, 115, 255, cv2.THRESH_BINARY)
     
-    kernel = np.ones((5, 3), np.uint8)
+    kernel = np.ones((3, 3), np.uint8)
     binary = cv2.dilate(binary, kernel, iterations=1)
     binary = cv2.erode(binary, kernel, iterations=1)
 
-    edges = cv2.Canny(binary, 40, 210)
+    edges = cv2.Canny(binary, 30, 210)
     contours_pins, _ = cv2.findContours(edges.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     contours_field, _ = cv2.findContours(binary.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     
@@ -169,7 +170,11 @@ def refine_pin_detection_adjusted(img):
     for point in green_pin_centers:
         # if new_x2 + 50 <= point[0] <= new_x2 + new_w2 and new_y2 <= point[1] <= new_y + new_h:
             green_select.append((point[0], point[1]))
-                
+
+    if green_select:
+        smallest_green_point = min(green_select, key=lambda point: point[0])  
+        print(smallest_green_point)
+                  
     # Find the point with the smallest x value in (White Pin)
     if points_select:
         smallest_white_field = min(points_select, key=lambda point: point[0])
@@ -192,11 +197,11 @@ def refine_pin_detection_adjusted(img):
         #     return None,None,None,None
         # if pt2 == None:
         #     return None,None,None,None
-        pt1 = green_select[0]            
+        pt1 = smallest_green_point          
         pt2 = smallest_white_field
         distance = np.sqrt((pt1[0] - pt2[0]) ** 2 + (pt1[1] - pt2[1]) ** 2)
         cv2.line(contour_frame, pt1, pt2, (255, 0, 0), 2)        
-        cv2.putText(contour_frame, f'(S) Green: {distance:.2f}', (3, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2, cv2.LINE_AA)
+        cv2.putText(contour_frame, f'(S) Green: {distance:.2f}', (3, 32), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 0, 0), 2, cv2.LINE_AA)
             
     # Case ( Pin White ) ##  -------------->  2
     if len(pin_center) != 0  and smallest_pincenter is not None and smallest_white_field is not None:
@@ -209,38 +214,38 @@ def refine_pin_detection_adjusted(img):
             pt2 = smallest_white_field
             distance2 = np.sqrt((pt1[0] - pt2[0]) ** 2 + (pt1[1] - pt2[1]) ** 2)
             cv2.line(contour_frame, pt1, pt2, (255, 0, 0), 2)
-            cv2.putText(contour_frame, f'(S) White: {distance2:.2f}', (3, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2, cv2.LINE_AA)
+            cv2.putText(contour_frame, f'(S) White: {distance2:.2f}', (3, 15), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 0, 0), 2, cv2.LINE_AA)
             
     # Case (1) || Case (2)
     comfirm = 0
     if len(green_pin_centers) != 0:
-        if distance >= 105 and distance <= 125 and distance2 < 100:
+        if distance >= 95 and distance <= 105 and distance2 < 100:
             cv2.putText(contour_frame, f'A', (200, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2, cv2.LINE_AA)
             print("A") 
             comfirm = 1           
-        elif distance > 125 and distance <= 140:
+        elif distance > 105 and distance <= 131:
             cv2.putText(contour_frame, f'B', (200, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2, cv2.LINE_AA)
             print("B") 
             comfirm = 1
-        elif distance > 140 and distance <= 155:
+        elif distance > 131 and distance <= 156:
             cv2.putText(contour_frame, f'C', (200, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2, cv2.LINE_AA)
             print("C") 
             comfirm = 1
-        elif distance > 80 and distance <= 95:
+        elif distance > 70 and distance <= 85:
             cv2.putText(contour_frame, f'D', (200, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2, cv2.LINE_AA)
             print("D") 
             comfirm = 1
-        elif distance > 95 and distance <= 105:
+        elif distance > 85 and distance <= 95:
             cv2.putText(contour_frame, f'E', (200, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2, cv2.LINE_AA)
             print("E") 
             comfirm = 1
-        elif distance > 105 and distance <= 125 and distance2 > 100 and distance2 < 200:
+        elif distance > 95 and distance <= 105 and distance2 > 100 and distance2 < 200:
             cv2.putText(contour_frame, f'F', (200, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2, cv2.LINE_AA)
             print("F") 
             comfirm = 1
             
     if comfirm == 0 and len(pin_center) != 0:
-        if distance2 >= 70 and distance2 <= 82:
+        if distance2 >= 50 and distance2 <= 82:
             cv2.putText(contour_frame, f'A', (200, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2, cv2.LINE_AA)
             print("A")  
         elif distance2 > 82 and distance2 <= 94:
@@ -252,10 +257,10 @@ def refine_pin_detection_adjusted(img):
         elif distance2 > 107 and distance2 <= 130:
             cv2.putText(contour_frame, f'D', (200, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2, cv2.LINE_AA)
             print("D")
-        elif distance2 > 130 and distance2 <= 150:
+        elif distance2 > 130 and distance2 <= 160:
             cv2.putText(contour_frame, f'E', (200, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2, cv2.LINE_AA)
             print("E")
-        elif distance2 > 150:
+        elif distance2 > 160:
             cv2.putText(contour_frame, f'F', (200, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2, cv2.LINE_AA)
             print("F")       
  
@@ -273,7 +278,12 @@ def refine_pin_detection_adjusted(img):
     return contour_frame, num_pins, sliced_image.shape
 
 # Load the new image
-new_image_path = 'out/image72.jpg' # E 30  # C 20
+new_image_path = 'pin/dataset_carc/F/in_calibrateline/F2.jpg' # E 30  # C 20
+# new_image_path = 'pin/dataset_carc/A/in_calibrateline/A2.jpg' # E 30  # C 20
+# new_image_path = 'pin/dataset_carc/B/in_calibrateline/B1.jpg' # E 30  # C 20
+# new_image_path = 'pin/dataset_carc/B/in_calibrateline/B2.jpg' # E 30  # C 20
+# new_image_path = 'pin/dataset_carc/C/in_calibrateline/C1.jpg' # E 30  # C 20
+# new_image_path = 'pin/dataset_carc/C/in_calibrateline/C2.jpg' # E 30  # C 20
 new_image = load_image(new_image_path)
 if new_image is None:
     raise ValueError("Error: Could not open the newly uploaded image.")
